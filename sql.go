@@ -64,6 +64,18 @@ const (
 	stepWhereOperator
 	stepWhereValue
 	stepWhereAnd
+	stepCreateTable
+	stepCreateTableFieldsOpeningParens
+	stepCreateTableFields
+	stepCreateTableFieldsType
+	stepCreateTableFieldsTypeOrClosingParens
+	stepDropTable
+	stepCreateIndex
+	stepCreateIndexOn
+	stepCreateIndexTable
+	stepCreateIndexTableFieldsOpeningParens
+	stepCreateIndexTableFields
+	stepCreateIndexTableFieldCommaOrClosingParens
 )
 
 type parser struct {
@@ -110,6 +122,18 @@ func (p *parser) doParse() (query.Query, error) {
 				p.query.Type = query.Delete
 				p.pop()
 				p.step = stepDeleteFromTable
+			case "CREATE TABLE":
+				p.query.Type = query.Create
+				p.pop()
+				p.step = stepCreateTable
+			case "DROP TABLE":
+				p.query.Type = query.Drop
+				p.pop()
+				p.step = stepDropTable
+			case "CREATE INDEX":
+				p.query.Type = query.CreateIndex
+				p.pop()
+				p.step = stepCreateIndex
 			default:
 				return p.query, fmt.Errorf("invalid query type")
 			}
@@ -360,6 +384,104 @@ func (p *parser) doParse() (query.Query, error) {
 			}
 			p.pop()
 			p.step = stepInsertValuesOpeningParens
+		case stepCreateTable:
+			tableName := p.peek()
+			if len(tableName) == 0 {
+				return p.query, fmt.Errorf("table name cannot be empty")
+			}
+			p.query.TableName = tableName
+			p.pop()
+			p.step = stepCreateTableFieldsOpeningParens
+		case stepCreateTableFieldsOpeningParens:
+			openingParens := p.peek()
+			if len(openingParens) != 1 || openingParens != "(" {
+				return p.query, fmt.Errorf("at CREATE TABLE: expected opening parens")
+			}
+			p.pop()
+			p.step = stepCreateTableFields
+		case stepCreateTableFields:
+			identifier := p.peek()
+			if !isIdentifier(identifier) {
+				return p.query, fmt.Errorf("at CREATE TABLE: need at least one column")
+			}
+			p.query.Fields = append(p.query.Fields, identifier)
+			p.pop()
+			p.step = stepCreateTableFieldsType
+		case stepCreateTableFieldsType:
+			identifier := p.peek()
+			if !isIdentifier(identifier) {
+				return p.query, fmt.Errorf("at CREATE TABLE: expected field type")
+			}
+			if p.query.Updates == nil {
+				p.query.Updates = make(map[string]string)
+			}
+			p.query.Updates[p.query.Fields[len(p.query.Fields)-1]] = identifier
+			p.pop()
+			p.step = stepCreateTableFieldsTypeOrClosingParens
+		case stepCreateTableFieldsTypeOrClosingParens:
+			commaOrClosingParens := p.peek()
+			p.pop()
+			if len(commaOrClosingParens) == 1 && commaOrClosingParens == "," {
+				p.step = stepCreateTableFields
+				continue
+			}
+			p.step = stepCreateTableFieldsOpeningParens
+		case stepDropTable:
+			tableName := p.peek()
+			if len(tableName) == 0 {
+				return p.query, fmt.Errorf("table name cannot be empty")
+			}
+			p.query.TableName = tableName
+			p.pop()
+		case stepCreateIndex:
+			indexName := p.peek()
+			if len(indexName) == 0 {
+				return p.query, fmt.Errorf("index name cannot be empty")
+			}
+			p.query.IndexName = indexName
+			p.pop()
+			p.step = stepCreateIndexOn
+		case stepCreateIndexOn:
+			on := p.peek()
+			p.pop()
+			if strings.ToUpper(on) != "ON" {
+				return p.query, fmt.Errorf("at CREATE INDEX: ON keyword expected")
+			}
+			p.step = stepCreateIndexTable
+		case stepCreateIndexTable:
+			tableName := p.peek()
+			if len(tableName) == 0 {
+				return p.query, fmt.Errorf("table name cannot be empty")
+			}
+			p.query.TableName = tableName
+			p.pop()
+			p.step = stepCreateIndexTableFieldsOpeningParens
+		case stepCreateIndexTableFieldsOpeningParens:
+			openingParens := p.peek()
+			if len(openingParens) != 1 || openingParens != "(" {
+				return p.query, fmt.Errorf("at CREATE INDEX: expected opening parens")
+			}
+			p.pop()
+			p.step = stepCreateIndexTableFields
+		case stepCreateIndexTableFields:
+			identifier := p.peek()
+			if !isIdentifier(identifier) {
+				return p.query, fmt.Errorf("at CREATE INDEX: need at least one column")
+			}
+			p.query.Fields = append(p.query.Fields, identifier)
+			p.pop()
+			p.step = stepCreateIndexTableFieldCommaOrClosingParens
+		case stepCreateIndexTableFieldCommaOrClosingParens:
+			commaOrClosingParens := p.peek()
+			if commaOrClosingParens != "," && commaOrClosingParens != ")" {
+				return p.query, fmt.Errorf("at CREATE INDEX: expected comma or closing parens")
+			}
+			p.pop()
+			if commaOrClosingParens == "," {
+				p.step = stepCreateIndexTableFields
+				continue
+			}
+			p.step = stepCreateIndexTableFieldsOpeningParens
 		}
 	}
 }
@@ -383,7 +505,7 @@ func (p *parser) popWhitespace() {
 
 var reservedWords = []string{
 	"(", ")", ">=", "<=", "!=", ",", "=", ">", "<", "SELECT", "INSERT INTO", "VALUES", "UPDATE", "DELETE FROM",
-	"WHERE", "FROM", "SET", "AS",
+	"CREATE TABLE", "DROP TABLE", "CREATE INDEX", "WHERE", "FROM", "SET", "AS",
 }
 
 func (p *parser) peekWithLength() (string, int) {
@@ -430,6 +552,11 @@ func (p *parser) validate() error {
 	if p.query.Type == query.UnknownType {
 		return fmt.Errorf("query type cannot be empty")
 	}
+
+	if p.query.Type == query.CreateIndex && len(p.query.IndexName) == 0 {
+		return fmt.Errorf("index name cannot be empty")
+	}
+
 	if p.query.TableName == "" {
 		return fmt.Errorf("table name cannot be empty")
 	}
@@ -457,6 +584,23 @@ func (p *parser) validate() error {
 			}
 		}
 	}
+	if p.query.Type == query.Create {
+		if len(p.query.Fields) == 0 {
+			return fmt.Errorf("at CREATE TABLE: need at least one column")
+		}
+		for _, f := range p.query.Fields {
+			if _, ok := p.query.Updates[f]; !ok {
+				return fmt.Errorf("at CREATE TABLE: expected field type")
+			}
+		}
+	}
+
+	if p.query.Type == query.CreateIndex {
+		if len(p.query.Fields) == 0 {
+			return fmt.Errorf("at CREATE INDEX: need at least one column")
+		}
+	}
+
 	return nil
 }
 

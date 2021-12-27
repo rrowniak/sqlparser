@@ -4,6 +4,7 @@ package query
 type Query struct {
 	Type       Type
 	TableName  string
+	IndexName  string
 	Conditions []Condition
 	Updates    map[string]string
 	Inserts    [][]string
@@ -25,6 +26,12 @@ const (
 	Insert
 	// Delete represents a DELETE query
 	Delete
+	// Create represents a CREATE TABLE query
+	Create
+	// Drop represents a DROP TABLE query
+	Drop
+	// CreateIndex represents a CREATE INDEX query
+	CreateIndex
 )
 
 // TypeString is a string slice with the names of all types in order
@@ -34,6 +41,9 @@ var TypeString = []string{
 	"Update",
 	"Insert",
 	"Delete",
+	"Create",
+	"Drop",
+	"CreateIndex",
 }
 
 // Operator is between operands in a condition

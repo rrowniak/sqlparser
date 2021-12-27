@@ -436,6 +436,114 @@ func TestSQL(t *testing.T) {
 			},
 			Err: nil,
 		},
+		{
+			Name:     "Empty CREATE TABLE fails",
+			SQL:      "CREATE TABLE",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("table name cannot be empty"),
+		},
+		{
+			Name:     "CREATE TABLE with no columns fails",
+			SQL:      "CREATE TABLE 'a'",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("at CREATE TABLE: need at least one column"),
+		},
+		{
+			Name:     "CREATE TABLE with incomplete column specification fails",
+			SQL:      "CREATE TABLE 'a' (",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("at CREATE TABLE: need at least one column"),
+		},
+		{
+			Name:     "CREATE TABLE with incomplete column specification fails #2",
+			SQL:      "CREATE TABLE 'a' (b",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("at CREATE TABLE: expected field type"),
+		},
+		{
+			Name:     "CREATE TABLE with incomplete column specification fails #3",
+			SQL:      "CREATE TABLE 'a' (b)",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("at CREATE TABLE: expected field type"),
+		},
+		{
+			Name: "CREATE TABLE works",
+			SQL:  "CREATE TABLE 'a' (b TEXT)",
+			Expected: query.Query{
+				Type:      query.Create,
+				TableName: "a",
+				Fields:    []string{"b"},
+				Updates:   map[string]string{"b": "TEXT"},
+			},
+			Err: nil,
+		},
+		{
+			Name:     "CREATE TABLE * fails",
+			SQL:      "CREATE TABLE 'a' (* INT)",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("at CREATE TABLE: need at least one column"),
+		},
+		{
+			Name: "CREATE TABLE with multiple columns works",
+			SQL:  "CREATE TABLE 'a' (b INT, c DATETIME, d TEXT, e BLOB)",
+			Expected: query.Query{
+				Type:      query.Create,
+				TableName: "a",
+				Fields:    []string{"b", "c", "d", "e"},
+				Updates:   map[string]string{"b": "INT", "c": "DATETIME", "d": "TEXT", "e": "BLOB"},
+			},
+			Err: nil,
+		},
+		{
+			Name:     "Empty DROP TABLE fails",
+			SQL:      "DROP TABLE",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("table name cannot be empty"),
+		},
+		{
+			Name: "DROP TABLE works",
+			SQL:  "DROP TABLE 'a'",
+			Expected: query.Query{
+				Type:      query.Drop,
+				TableName: "a",
+			},
+			Err: nil,
+		},
+		{
+			Name:     "Empty CREATE INDEX fails",
+			SQL:      "CREATE INDEX",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("index name cannot be empty"),
+		},
+		{
+			Name:     "CREATE INDEX with no table name fails #1",
+			SQL:      "CREATE INDEX 'a'",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("table name cannot be empty"),
+		},
+		{
+			Name:     "CREATE INDEX with no table name fails #2",
+			SQL:      "CREATE INDEX 'a' ON",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("table name cannot be empty"),
+		},
+		{
+			Name:     "CREATE INDEX without columns fails #1",
+			SQL:      "CREATE INDEX 'a' ON 'b' (",
+			Expected: query.Query{},
+			Err:      fmt.Errorf("at CREATE INDEX: need at least one column"),
+		},
+		{
+			Name: "CREATE INDEX works",
+			SQL:  "CREATE INDEX 'a' ON b (c, d)",
+			Expected: query.Query{
+				Type:      query.CreateIndex,
+				TableName: "b",
+				IndexName: "a",
+				Fields:    []string{"c", "d"},
+			},
+			Err: nil,
+		},
 	}
 
 	output := output{Types: query.TypeString, Operators: query.OperatorString}

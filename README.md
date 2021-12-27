@@ -479,6 +479,70 @@ query.Query {
 }
 ```
 
+### Example: CREATE TABLE works
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE 'a' (b TEXT)`)
+
+query.Query {
+	Type: Create
+	TableName: a
+	Conditions: []
+	Updates: map[b:TEXT]
+	Inserts: []
+	Fields: [b]
+	Aliases: map[]
+}
+```
+
+### Example: CREATE TABLE with multiple columns works
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE 'a' (b INT, c DATETIME, d TEXT, e BLOB)`)
+
+query.Query {
+	Type: Create
+	TableName: a
+	Conditions: []
+	Updates: map[b:INT c:DATETIME d:TEXT e:BLOB]
+	Inserts: []
+	Fields: [b c d e]
+	Aliases: map[]
+}
+```
+
+### Example: DROP TABLE works
+
+```
+query, err := sqlparser.Parse(`DROP TABLE 'a'`)
+
+query.Query {
+	Type: Drop
+	TableName: a
+	Conditions: []
+	Updates: map[]
+	Inserts: []
+	Fields: []
+	Aliases: map[]
+}
+```
+
+### Example: CREATE INDEX works
+
+```
+query, err := sqlparser.Parse(`CREATE INDEX 'a' ON b (c, d)`)
+
+query.Query {
+	Type: CreateIndex
+	TableName: b
+	Conditions: []
+	Updates: map[]
+	Inserts: []
+	Fields: [c d]
+	Aliases: map[]
+}
+```
+
 
 
 ### Example: empty query fails
@@ -679,5 +743,93 @@ at INSERT INTO: value count doesn't match field count
 query, err := sqlparser.Parse(`INSERT INTO 'a' (*) VALUES ('1')`)
 
 at INSERT INTO: expected at least one field to insert
+```
+
+### Example: Empty CREATE TABLE fails
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE`)
+
+table name cannot be empty
+```
+
+### Example: CREATE TABLE with no columns fails
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE 'a'`)
+
+at CREATE TABLE: need at least one column
+```
+
+### Example: CREATE TABLE with incomplete column specification fails
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE 'a' (`)
+
+at CREATE TABLE: need at least one column
+```
+
+### Example: CREATE TABLE with incomplete column specification fails #2
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE 'a' (b`)
+
+at CREATE TABLE: expected field type
+```
+
+### Example: CREATE TABLE with incomplete column specification fails #3
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE 'a' (b)`)
+
+at CREATE TABLE: expected field type
+```
+
+### Example: CREATE TABLE * fails
+
+```
+query, err := sqlparser.Parse(`CREATE TABLE 'a' (* INT)`)
+
+at CREATE TABLE: need at least one column
+```
+
+### Example: Empty DROP TABLE fails
+
+```
+query, err := sqlparser.Parse(`DROP TABLE`)
+
+table name cannot be empty
+```
+
+### Example: Empty CREATE INDEX fails
+
+```
+query, err := sqlparser.Parse(`CREATE INDEX`)
+
+index name cannot be empty
+```
+
+### Example: CREATE INDEX with no table name fails #1
+
+```
+query, err := sqlparser.Parse(`CREATE INDEX 'a'`)
+
+table name cannot be empty
+```
+
+### Example: CREATE INDEX with no table name fails #2
+
+```
+query, err := sqlparser.Parse(`CREATE INDEX 'a' ON`)
+
+table name cannot be empty
+```
+
+### Example: CREATE INDEX without columns fails #1
+
+```
+query, err := sqlparser.Parse(`CREATE INDEX 'a' ON 'b' (`)
+
+at CREATE INDEX: need at least one column
 ```
 
